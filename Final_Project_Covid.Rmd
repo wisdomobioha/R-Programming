@@ -1,0 +1,303 @@
+---
+title: "Analysis of Global COVID-19 Pandemic Data"
+author: "Wisdom Obioha"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Overview:
+
+In this final project, you will apply your knowledge of data analysis by completing a series of hands-on tasks in this lab notebook. The lab consists of 10 tasks, where you will write and execute code to demonstrate your skills.
+
+While working through the lab, remember to save all your code and outputs, then download the Jupyter Notebook, as you will need to submit the completed notebook for the **Final Project: Submission and Evaluation**.
+
+If you need to refresh your memories about specific coding details, you may refer to previous hands-on labs for code examples.
+
+```{r}
+#install.packages("httr", repos = "https://cloud.r-project.org")
+#install.packages("rvest", repos = "https://cloud.r-project.org")
+
+library(httr)
+library(rvest)
+
+```
+
+Note: if you can import above libraries, please use install.packages() to install them first.
+
+# TASK 1: Get a COVID-19 pandemic Wiki page using HTTP request
+
+First, let's write a function to use HTTP request to get a public COVID-19 Wiki page.
+
+Before you write the function, you can open this public page from this
+
+URL https://en.wikipedia.org/w/index.php?title=Template:COVID-19_testing_by_country using a web browser.
+
+The goal of task 1 is to get the html page using HTTP request (httr library)
+
+```{r}
+get_wiki_covid19_page <- function() {
+    
+  # Our target COVID-19 wiki page URL is: https://en.wikipedia.org/w/index.php?title=Template:COVID-19_testing_by_country  
+  # Which has two parts: 
+    # 1) base URL `https://en.wikipedia.org/w/index.php  
+    # 2) URL parameter: `title=Template:COVID-19_testing_by_country`, seperated by question mark ?
+    
+  # Wiki page base
+  wiki_base_url <- "https://en.wikipedia.org/w/index.php"
+  # You will need to create a List which has an element called `title` to specify which page you want to get from Wiki
+  # in our case, it will be `Template:COVID-19_testing_by_country`
+ wiki_url_list <- list(title = "Template:COVID-19_testing_by_country")
+  # - Use the `GET` function in httr library with a `url` argument and a `query` arugment to get a HTTP response
+    wiki_response <<- GET(url = wiki_base_url, query = wiki_url_list)
+  # Use the `return` function to return the response
+    return(wiki_response)
+}
+```
+
+Call the get_wiki_covid19_page function to get a http response with the target html page
+
+```{r}
+# Call the get_wiki_covid19_page function and print the response
+get_wiki_covid19_page()
+```
+
+# TASK 2: Extract COVID-19 testing data table from the wiki HTML page
+
+On the COVID-19 testing wiki page, you should see a data table <table> node contains COVID-19 testing data by country on the page:
+
+Note the numbers you actually see on your page may be different from above because it is still an on-going pandemic when creating this notebook.
+
+The goal of task 2 is to extract above data table and convert it into a data frame
+
+Now use the read_html function in rvest library to get the root html node from response
+
+```{r}
+# Get the root html node from the http response in task 1 
+root_node <- read_html(wiki_response)
+root_node
+```
+
+Get the tables in the HTML root node using html_nodes function.
+
+```{r}
+# Get the table node from the root html node
+table_node <- html_node(root_node, "table")
+table_node
+```
+
+Read the specific table from the multiple tables in the table_node using the html_table function and convert it into dataframe using as.data.frame
+
+*Hint:- Please read the table_node with index 2(ex:- table_node[2]).*
+
+```{r}
+# Read the table node and convert it into a data frame, and print the data frame for review
+covid_data <- as.data.frame(html_table(table_node))
+covid_data
+```
+
+# TASK 3: Pre-process and export the extracted data frame
+
+The goal of task 3 is to pre-process the extracted data frame from the previous step, and export it as a csv file
+
+Let's get a summary of the data frame
+
+```{r}
+# Print the summary of the data frame
+summary(covid_data)
+```
+
+As you can see from the summary, the columns names are little bit different to understand and some column data types are not correct. For example, the Tested column shows as character.
+
+As such, the data frame read from HTML table will need some pre-processing such as removing irrelvant columns, renaming columns, and convert columns into proper data types.
+
+We have prepared a pre-processing function for you to conver the data frame but you can also try to write one by yourself
+
+```{r}
+
+preprocess_covid_data_frame <- function(data_frame) {
+    
+    shape <- dim(data_frame)
+
+    # Remove the World row
+    # data_frame<-data_frame[!(data_frame$`Country.or.region`=="World"),]
+    # World does not exist in the data as a row!
+    # Remove the last row
+    data_frame <- data_frame[1:172, ]
+    
+    # We dont need the Units and Ref columns, so can be removed
+    data_frame["Ref."] <- NULL
+    data_frame["Units[b]"] <- NULL
+    
+    # Renaming the columns
+    names(data_frame) <- c("country", "date", "tested", "confirmed", "confirmed.tested.ratio", "tested.population.ratio", "confirmed.population.ratio")
+    
+    # Convert column data types
+    data_frame$country <- as.factor(data_frame$country)
+    data_frame$date <- as.factor(data_frame$date)
+    data_frame$tested <- as.numeric(gsub(",","",data_frame$tested))
+    data_frame$confirmed <- as.numeric(gsub(",","",data_frame$confirmed))
+    data_frame$confirmed.tested.ratio <- as.numeric(gsub(",","",data_frame$confirmed.tested.ratio))
+    data_frame$tested.population.ratio <- as.numeric(gsub(",","",data_frame$tested.population.ratio))
+    data_frame$confirmed.population.ratio <- as.numeric(gsub(",","",data_frame$confirmed.population.ratio))
+    
+    return(data_frame)
+}
+
+```
+
+Call the preprocess_covid_data_frame function
+
+```{r}
+# call `preprocess_covid_data_frame` function and assign it to a new data frame
+covid_data2 <- preprocess_covid_data_frame(covid_data)
+covid_data2
+```
+
+Get the summary of the processed data frame again
+
+```{r}
+summary(covid_data2)
+```
+After pre-processing, you can see the columns and columns names are simplified, and columns types are converted into correct types.
+
+The data frame has following columns:
+
+
+* country - The name of the country
+* date - Reported date
+* tested - Total tested cases by the reported date
+* confirmed - Total confirmed cases by the reported date
+* confirmed.tested.ratio - The ratio of confirmed cases to the tested cases
+* tested.population.ratio - The ratio of tested cases to the population of the country
+* confirmed.population.ratio - The ratio of confirmed cases to the population of the country
+
+
+OK, we can call write.csv() function to save the csv file into a file.
+
+```{r}
+# Export the data frame to a csv file
+write.csv(covid_data2, file = "processed_covid_data.csv", row.names = FALSE)
+```
+
+Note for IBM Waston Studio, there is no traditional "hard disk" associated with a R workspace.
+
+Even if you call write.csv() method to save the data frame as a csv file, it won't be shown in IBM Cloud Object Storage asset UI automatically.
+
+However, you may still check if the covid.csv exists using following code snippet:
+
+```{r}
+# Get working directory
+wd <- getwd()
+# Get exported 
+file_path <- paste(wd, sep="", "/processed_covid_data.csv")
+# File path
+print(file_path)
+file.exists(file_path)
+```
+Optional Step: If you have difficulties finishing above webscraping tasks, you may still continue with next tasks by downloading a provided csv file from here:
+
+```{r}
+## Download a sample csv file
+# covid_csv_file <- download.file("https://cf-courses-data.s3.us.cloud-object-storage.appdomain.cloud/IBMDeveloperSkillsNetwork-RP0101EN-Coursera/v2/dataset/covid.csv", destfile="covid.csv")
+# covid_data_frame_csv <- read.csv("covid.csv", header=TRUE, sep=",")
+```
+
+# TASK 4: Get a subset of the extracted data frame
+
+The goal of task 4 is to get the 5th to 10th rows from the data frame with only country and confirmed columns selected
+
+```{r}
+# Read covid_data_frame_csv from the csv file
+covid_data_main <- read.csv("processed_covid_data.csv")
+covid_data_main[5:10, c("country", "confirmed")]
+```
+
+# TASK 5: Calculate worldwide COVID testing positive ratio
+
+The goal of task 5 is to get the total confirmed and tested cases worldwide, and try to figure the overall positive ratio using confirmed cases / tested cases
+
+```{r}
+# Get the total confirmed cases worldwide
+total_confirmed <- sum(covid_data_main$confirmed)
+# Get the total tested cases worldwide
+total_tested <- sum(covid_data_main$tested)
+# Get the positive ratio (confirmed / tested)
+positive_ratio <- total_confirmed / total_tested
+total_confirmed
+total_tested
+positive_ratio
+```
+
+# TASK 6: Get a country list which reported their testing data
+
+The goal of task 6 is to get a catalog or sorted list of countries who have reported their COVID-19 testing data
+
+```{r}
+# Get the `country` column
+covid_data_main["country"]
+# Check its class (should be character)
+class(covid_data_main[["country"]])
+# Sort the countries AtoZ
+sort_AZ <- sort(covid_data_main$country)
+# Sort the countries ZtoA
+sort_ZA <- sort(covid_data_main[["country"]], decreasing = TRUE)
+# Print the sorted ZtoA list
+sort_ZA
+```
+
+# TASK 7: Identify countries names with a specific pattern
+The goal of task 7 is using a regular expression to find any countries start with United
+
+```{r}
+# Use a regular expression `United.+` to find matches
+matched_country <- grep("United.+", covid_data_main$country, value = TRUE)
+# Print the matched country names
+matched_country
+```
+
+# TASK 8: Pick two countries you are interested, and then review their testing data
+The goal of task 8 is to compare the COVID-19 test data between two countires, you will need to select two rows from the dataframe, and select country, confirmed, confirmed-population-ratio columns
+```{r}
+# Select a subset (should be only one row) of data frame based on a selected country name and columns
+covid_data_main[covid_data_main$country == "Nigeria", 
+                c("country", "confirmed", "confirmed.population.ratio")]
+
+# Select a subset (should be only one row) of data frame based on a selected country name and columns
+covid_data_main[covid_data_main$country == "United States", 
+                c("country", "confirmed", "confirmed.population.ratio")]
+```
+
+# TASK 9: Compare which one of the selected countries has a larger ratio of confirmed cases to population
+
+The goal of task 9 is to find out which country you have selected before has larger ratio of confirmed cases to population, which may indicate that country has higher COVID-19 infection risk
+
+```{r}
+# Use if-else statement
+# if (check which confirmed.population value is greater) {
+#    print()
+# } else {
+#    print()
+# }
+
+if(covid_data_main[covid_data_main$country == "United States", c("confirmed.population.ratio")] > covid_data_main[covid_data_main$country == "Nigeria", c("confirmed.population.ratio")]) {
+  print("United States has higher COVID-19 infection risk")
+} else {
+  print("Nigeria has higher COVID-19 infection risk")
+}
+```
+# TASK 10: Find countries with confirmed to population ratio rate less than a threshold
+
+The goal of task 10 is to find out which countries have the confirmed to population ratio less than 1%, it may indicate the risk of those countries are relatively low
+
+```{r}
+threshold = 0.01 # 1%
+low_risk <- covid_data_main[covid_data_main$confirmed.population.ratio < threshold, "country"]
+low_risk
+```
+
